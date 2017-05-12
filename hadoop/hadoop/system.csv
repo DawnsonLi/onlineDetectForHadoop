@@ -1,0 +1,1 @@
+bytes_in,bytes_out,cpu_aidle,cpu_idle,cpu_nice,cpu_steal,cpu_system,cpu_user,cpu_wio,disk_free,disk_total,load_fifteen,load_five,load_one,mem_buffers,mem_cached,mem_free,mem_shared,mem_total,pkts_in,pkts_out,proc_run,proc_total,swap_free,swap_total

@@ -1,0 +1,49 @@
+实现原理：Ganglia API是一个小型独立的python应用程序，它从许多Ganglia gmetad进程中获取XML数据，并呈现最近收到的数据的RESTful JSON API。
+特点：不经由数据库操作
+具体来说工作方式如下：
+线程控制0.2s更新数据一回，并更新日志
+更新数据使用 监听gmetad xml端口 和gmetad 交互端口 建立socket并返回的数据，两个端口通过在gmetad.conf文件中进行字符串匹配找出
+从而将两个端口监听的数据进行组装，进行返回
+
+安装依赖：python 2.7 and tornado
+
+git地址：https://github.com/guardian/ganglia-api
+
+使用说明：
+可以通过日志 /var/log/ganglia-api.log查看读写和更新信息，便于排查错误
+
+启动方式：
+在文件夹，运行python文件即可，即输入命令：sudo python ganglia/ganglia_api.py
+访问 URL http://192.168.1.102:8080/ganglia/api/v2/metrics
+返回Json文件
+	
+常见错误：JSON文件为空
+这说明 并没有监听到gmetad的数据
+
+相关操作:
+service gmetad start
+service gmetad restart
+监听  gmetad 看是否有可用的数据
+telnet localhost 8651
+如果发现返回数据中没有val字段，说明gemtad工作有误
+service gmond start
+service gmond restart
+监听  gmond 看是否有可用的数据
+telnet localhost 8649
+
+其他：
+通过日志 /var/log/ganglia-api.log发现，常见的无法连接就是 无法连接8651,8652,这都是gmetad的端口，因此也就是gmetad的错误
+
+python访问.py示例
+cs_url = 'http://192.168.1.102:8080/ganglia/api/v2/metrics'
+cs_user = 'dbcluster'
+cs_psw  = 'dbuser'        
+r = requests.get(cs_url, auth=(cs_user, cs_psw))
+    
+for k, v in r.json().items():
+    print k, v
+
+获取日志十分清晰，结构十分清楚，使用json解析即可
+
+
+李东升总结
