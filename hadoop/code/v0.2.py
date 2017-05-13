@@ -51,7 +51,7 @@ def analyseWarn(buf,lable,name,topk=5):
                 anamolySample.append(train_data[index])
         index -= 1
         bufReminLen -=1
-    if len(anamolySample) <1 || len(normalSample)< 1:
+    if len(anamolySample) <1 or len(normalSample)< 1:
         print "sample is not enough"
         return
     #分析原因
