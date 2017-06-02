@@ -36,15 +36,16 @@ def warn_analyse(label, warnfactor):
 '''
 def analyseWarn(name,qname,topk=5):
     client = DataFrameClient(host='127.0.0.1', port=8086, username='root', password='root', database='testdb')
-    query_positive = 'select * from ganglia where '+qname+' >0 ORDER BY time DESC limit 10'
-    query_negative = 'select * from ganglia where '+qname+' <0 ORDER BY time DESC limit 5'
+    query_positive = 'select * from ganglia where '+qname+' >0 ORDER BY time DESC limit 10'#默认10个，可以修改
+    query_negative = 'select * from ganglia where '+qname+' <0 ORDER BY time DESC limit 5'#默认要和warnfactor一致
 
     data_p = client.query(query_positive, chunked=False)
     data_positive = data_p['ganglia']
-    normalSample = data_positive[name]
+    normalSample = data_positive[name]#取出正常样本
+    
     data_n = client.query(query_negative, chunked=False)
     data_negative = data_n['ganglia']
-    anamolySample = data_negative[name]
+    anamolySample = data_negative[name]#取出异常样本
     return analyseReasonWithTreeBaesd(anamolySample, normalSample, name)
 def writeToTSDB(d):
     json_body = [
@@ -60,19 +61,20 @@ def writeToTSDB(d):
 分析异常产生的原因与哪几个变量关系最密切。当前使用卡方检验进行分析
 '''
 def analyseReasonWithXsqure(anamolySample, normalSample, topk, name):
-    data = anamolySample
     target = []
     for i in range(0, len(anamolySample)):
         target.append(1)
-    data.extend(normalSample)
+    data = pd.concat([anamolySample,normalSample])
     for i in range(0, len(normalSample)):
         target.append(0)
-
     X_new = SelectKBest(chi2, topk).fit(data, target)
     outcome = X_new.get_support()
+    warnstr = ""
     for i in range(0, len(name)):
         if outcome[i]:
-            print name[i]
+            warnstr += name[i]
+            warnstr += "   ;   "
+    return warnstr
 '''
 基于树和集成学习，学习特征的重要性
 '''
@@ -203,7 +205,7 @@ def detectUpdate(size, maxContainSize):
 '''
 def sampleDecay(sampletime,alpha,samplesize):
     k = len(sampletime)
-    T = sampletime[0]#取出最晚的时间
+    T = sampletime[0]#取出最晚的时间，与从数据库中取出的时间顺序有关，这里采用时间倒序
     temp = 0.0
     for i in range(0,k):
         temp += 1.0/(1.0+alpha*(T-sampletime[i]))
@@ -235,16 +237,16 @@ def updateWindow(l_sys, l_namenode, l_FS, l_RPC,cont,limit):
     ilf = IsolationForest(n_estimators=100, contamination=cont)
     client = DataFrameClient(host='127.0.0.1', port=8086, username='root', password='root', database='testdb')
     #取数据
-    data_sys = sampleWithDecay(client,limit,'select * from ganglia where w_system >0 ORDER BY time DESC')
+    data_sys = sampleWithDecay(client,limit,'select * from ganglia where w_system >0 ORDER BY time DESC limit 1500')#有默认的limit防止取得数据过多
     d_sys = data_sys[l_sys]
 
-    data_fs = sampleWithDecay(client, limit, 'select * from ganglia where w_fs >0 ORDER BY time DESC')
+    data_fs = sampleWithDecay(client, limit, 'select * from ganglia where w_fs >0 ORDER BY time DESC limit 1500')
     d_FS = data_fs[l_FS]
 
-    data_namenode = sampleWithDecay(client, limit, 'select * from ganglia where w_namenode >0 ORDER BY time DESC')
+    data_namenode = sampleWithDecay(client, limit, 'select * from ganglia where w_namenode >0 ORDER BY time DESC limit 1500')
     d_namenode = data_namenode[l_namenode]
 
-    data_rpc = sampleWithDecay(client, limit, 'select * from ganglia where w_rpc >0 ORDER BY time DESC')
+    data_rpc = sampleWithDecay(client, limit, 'select * from ganglia where w_rpc >0 ORDER BY time DESC limit 1500')
     d_RPC = data_rpc[l_RPC]
 
     ilf_sys = IsolationForest(n_estimators=100, contamination=cont)
@@ -262,6 +264,7 @@ def updateWindow(l_sys, l_namenode, l_FS, l_RPC,cont,limit):
 '''
 功能：初始化
 参数：cont为隔离森林中评估数据异常率的重要参数
+当前特点：融入了在线热启动与历史数据结合，由winsize控制
 '''
 def init(l_sys, l_namenode, l_FS, l_RPC, d, dwhite, winsize=200, sleeptime=15, cont=0.01,limit = 300):
     win_sys = []
@@ -289,16 +292,16 @@ def init(l_sys, l_namenode, l_FS, l_RPC, d, dwhite, winsize=200, sleeptime=15, c
     #加入历史数据综合分析
     client = DataFrameClient(host='127.0.0.1', port=8086, username='root', password='root', database='testdb')
 
-    data_sys = sampleWithDecay(client, limit, 'select * from ganglia where w_system >0 ORDER BY time DESC')
+    data_sys = sampleWithDecay(client, limit, 'select * from ganglia where w_system >0 ORDER BY time DESC limit 1500')#有默认的限制
     d_sys = data_sys[l_sys]
 
-    data_fs = sampleWithDecay(client, limit, 'select * from ganglia where w_fs >0 ORDER BY time DESC')
+    data_fs = sampleWithDecay(client, limit, 'select * from ganglia where w_fs >0 ORDER BY time DESC limit 1500')
     d_FS = data_fs[l_FS]
 
-    data_namenode = sampleWithDecay(client, limit, 'select * from ganglia where w_namenode >0 ORDER BY time DESC')
+    data_namenode = sampleWithDecay(client, limit, 'select * from ganglia where w_namenode >0 ORDER BY time DESC limit 1500')
     d_namenode = data_namenode[l_namenode]
 
-    data_rpc = sampleWithDecay(client, limit, 'select * from ganglia where w_rpc >0 ORDER BY time DESC')
+    data_rpc = sampleWithDecay(client, limit, 'select * from ganglia where w_rpc >0 ORDER BY time DESC limit 1500')
     d_RPC = data_rpc[l_RPC]
 
     #合并当前在线数据
@@ -323,10 +326,13 @@ def init(l_sys, l_namenode, l_FS, l_RPC, d, dwhite, winsize=200, sleeptime=15, c
     print ilf_RPC.predict(win_RPC)
 
     return ilf_sys, ilf_namenode, ilf_FS, ilf_RPC
+'''
+输入：sleeptime采样间隔时间, winsize 初始化时窗口的大小, cont隔离森林的初始化参数, warnfactor用户定义的用于报警的阈值,limit从数据库中读取数据的限制
+'''
 def online_detect(sleeptime=15, winsize=100, cont=0.01, warnfactor=20,limit = 300):
     maxContainSize = 100#触发更新机制的常量
     d = {}#存储metric和相应值的字典
-    size = 0
+    size = 0#用于触发更新模块
     #原因分析触发模块计数变量
     label_namenode = 0
     label_sys = 0
@@ -375,7 +381,7 @@ def online_detect(sleeptime=15, winsize=100, cont=0.01, warnfactor=20,limit = 30
             print "system :"
             stemp = analyseWarn(l_sys,'w_system')
             if stemp != "":
-                d['a_system'] = stemp
+                d['a_system'] = stemp#a表示analyse
             label_sys = 0
 
         if warn_analyse(label_namenode,warnfactor):
