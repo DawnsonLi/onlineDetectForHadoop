@@ -7,4 +7,6 @@
 使用ganglia API获取时间序列数据，并存储到时间序列数据库InfluxDB中，使用grafana进行可视化
 ## 项目延伸意义 <br>
 给出了难以实时给数据进行异常分类问题的解决思路，提出基于时间序列进行异常探测及原因解释的整体框架，具有很强的延伸价值，比如数据安全等
+## 致谢 <br>
+感谢github开源工具ganglia API、InfluxDB、grafana
 
